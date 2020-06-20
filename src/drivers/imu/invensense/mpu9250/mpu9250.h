@@ -44,6 +44,8 @@ public:
 	virtual uint8_t get_device_address() const = 0;
 
 	virtual int transfer(uint8_t *send, uint8_t *recv, unsigned len) = 0;
+
+	virtual bool external() const = 0;
 };
 
 } /* namespace */

@@ -621,17 +621,11 @@ bool MPU9250::I2CSlaveExternalSensorDataRead(uint8_t *buffer, uint8_t length)
 	bool ret = false;
 
 	if (buffer != nullptr && length <= 24) {
-		// max EXT_SENS_DATA 24 bytes
-		uint8_t transfer_buffer[24 + 1] {};
-		transfer_buffer[0] = static_cast<uint8_t>(Register::EXT_SENS_DATA_00) | DIR_READ;
-		// set_frequency(SPI_SPEED_SENSOR);
-
-		if (_interface->transfer(transfer_buffer, transfer_buffer, length + 1) == PX4_OK) {
-			ret = true;
+		for (uint8_t i = 0; i < length; i++) {
+			buffer[i] = _interface->get_reg(static_cast<uint8_t>(Register::EXT_SENS_DATA_00) + i);
 		}
 
-		// copy data after cmd back to return buffer
-		memcpy(buffer, &transfer_buffer[1], length);
+		ret = true;
 	}
 
 	return ret;

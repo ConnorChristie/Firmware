@@ -73,6 +73,8 @@ public:
 
 	uint32_t get_device_id() const { return _interface->get_device_id(); }
 
+	bool external() const { return _interface->external(); }
+
 private:
 	void exit_and_cleanup() override;
 

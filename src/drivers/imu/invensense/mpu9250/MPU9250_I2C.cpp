@@ -56,6 +56,8 @@ public:
 
 	int transfer(uint8_t *send, uint8_t *recv, unsigned len) override;
 
+	bool external() const override { return device::I2C::external(); }
+
 private:
 	mpu9250::data_s _data[512];
 };
