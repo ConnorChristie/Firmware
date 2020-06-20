@@ -41,7 +41,7 @@ void MPU9250::print_usage()
 	PRINT_MODULE_USAGE_NAME("mpu9520", "driver");
 	PRINT_MODULE_USAGE_SUBCATEGORY("imu");
 	PRINT_MODULE_USAGE_COMMAND("start");
-	PRINT_MODULE_USAGE_PARAMS_I2C_SPI_DRIVER(false, true);
+	PRINT_MODULE_USAGE_PARAMS_I2C_SPI_DRIVER(true, true);
 	PRINT_MODULE_USAGE_PARAM_FLAG('M', "Enable Magnetometer (AK8963)", true);
 	PRINT_MODULE_USAGE_PARAM_INT('R', 0, 0, 35, "Rotation", true);
 	PRINT_MODULE_USAGE_DEFAULT_COMMANDS();
@@ -51,28 +51,50 @@ I2CSPIDriverBase *MPU9250::instantiate(const BusCLIArguments &cli, const BusInst
 				       int runtime_instance)
 {
 	bool mag = (cli.custom1 == 1);
-	MPU9250 *instance = new MPU9250(iterator.configuredBusOption(), iterator.bus(), iterator.devid(), cli.rotation,
-					cli.bus_frequency, cli.spi_mode, iterator.DRDYGPIO(), mag);
 
-	if (!instance) {
+	mpu9250::IMPU9250 *interface = nullptr;
+
+	if (iterator.busType() == BOARD_I2C_BUS) {
+		interface = mpu9250_i2c_interface(iterator.bus(), cli.i2c_address, cli.bus_frequency);
+
+	} else if (iterator.busType() == BOARD_SPI_BUS) {
+		// interface = mpu9250_spi_interface(iterator.bus(), iterator.devid(), cli.bus_frequency, cli.spi_mode);
+	}
+
+	if (interface == nullptr) {
+		PX4_ERR("failed creating interface for bus %i (devid 0x%x)", iterator.bus(), iterator.devid());
+		return nullptr;
+	}
+
+	if (interface->init() != OK) {
+		delete interface;
+		PX4_DEBUG("no device on bus %i (devid 0x%x)", iterator.bus(), iterator.devid());
+		return nullptr;
+	}
+
+	MPU9250 *dev = new MPU9250(iterator.configuredBusOption(), iterator.bus(), cli.rotation, iterator.DRDYGPIO(), interface, mag);
+
+	if (!dev) {
 		PX4_ERR("alloc failed");
 		return nullptr;
 	}
 
-	if (OK != instance->init()) {
-		delete instance;
+	if (OK != dev->init()) {
+		delete dev;
 		return nullptr;
 	}
 
-	return instance;
+	return dev;
 }
 
 extern "C" int mpu9250_main(int argc, char *argv[])
 {
 	int ch;
 	using ThisDriver = MPU9250;
-	BusCLIArguments cli{false, true};
+	BusCLIArguments cli{true, true};
+	cli.i2c_address = 0x68;
 	cli.default_spi_frequency = SPI_SPEED;
+	cli.default_i2c_frequency = I2C_SPEED;
 
 	while ((ch = cli.getopt(argc, argv, "MR:")) != EOF) {
 		switch (ch) {

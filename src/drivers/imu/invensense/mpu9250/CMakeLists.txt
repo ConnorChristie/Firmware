@@ -43,6 +43,7 @@ px4_add_module(
 		InvenSense_MPU9250_registers.hpp
 		MPU9250_AK8963.cpp
 		MPU9250_AK8963.hpp
+		MPU9250_I2C.cpp
 		MPU9250.cpp
 		MPU9250.hpp
 		mpu9250_main.cpp

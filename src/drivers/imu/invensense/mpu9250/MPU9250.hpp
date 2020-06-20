@@ -40,11 +40,12 @@
 
 #pragma once
 
+#include "mpu9250.h"
+
 #include "InvenSense_MPU9250_registers.hpp"
 
 #include <drivers/drv_hrt.h>
 #include <lib/drivers/accelerometer/PX4Accelerometer.hpp>
-#include <lib/drivers/device/spi.h>
 #include <lib/drivers/gyroscope/PX4Gyroscope.hpp>
 #include <lib/ecl/geo/geo.h>
 #include <lib/perf/perf_counter.h>
@@ -55,12 +56,11 @@
 
 using namespace InvenSense_MPU9250;
 
-class MPU9250 : public device::SPI, public I2CSPIDriver<MPU9250>
+class MPU9250 : public I2CSPIDriver<MPU9250>
 {
 public:
-	MPU9250(I2CSPIBusOption bus_option, int bus, uint32_t device, enum Rotation rotation, int bus_frequency,
-		spi_mode_e spi_mode, spi_drdy_gpio_t drdy_gpio, bool enable_magnetometer = false);
-	~MPU9250() override;
+	MPU9250(I2CSPIBusOption bus_option, int bus, enum Rotation rotation, spi_drdy_gpio_t drdy_gpio, mpu9250::IMPU9250 *interface, bool enable_magnetometer = false);
+	virtual ~MPU9250();
 
 	static I2CSPIDriverBase *instantiate(const BusCLIArguments &cli, const BusInstanceIterator &iterator,
 					     int runtime_instance);
@@ -68,8 +68,10 @@ public:
 
 	void RunImpl();
 
-	int init() override;
-	void print_status() override;
+	int init();
+	void print_status();
+
+	uint32_t get_device_id() const { return _interface->get_device_id(); }
 
 private:
 	void exit_and_cleanup() override;
@@ -97,7 +99,7 @@ private:
 		uint8_t clear_bits{0};
 	};
 
-	int probe() override;
+	int probe();
 
 	bool Reset();
 
@@ -123,11 +125,14 @@ private:
 	bool FIFORead(const hrt_abstime &timestamp_sample, uint8_t samples);
 	void FIFOReset();
 
-	bool ProcessAccel(const hrt_abstime &timestamp_sample, const FIFO::DATA fifo[], const uint8_t samples);
-	void ProcessGyro(const hrt_abstime &timestamp_sample, const FIFO::DATA fifo[], const uint8_t samples);
+	bool ProcessAccel(const hrt_abstime &timestamp_sample, mpu9250::data_s *buffer, const uint8_t samples);
+	void ProcessGyro(const hrt_abstime &timestamp_sample, mpu9250::data_s *buffer, const uint8_t samples);
 	void UpdateTemperature();
 
 	const spi_drdy_gpio_t _drdy_gpio;
+
+	mpu9250::IMPU9250 *_interface;
+	I2CSPIBusOption _bus_option;
 
 	// I2C AUX interface (slave 1 - 4)
 	AKM_AK8963::MPU9250_AK8963 *_slave_ak8963_magnetometer{nullptr};
@@ -177,6 +182,9 @@ private:
 		{ Register::GYRO_CONFIG,        GYRO_CONFIG_BIT::GYRO_FS_SEL_2000_DPS, GYRO_CONFIG_BIT::FCHOICE_B_8KHZ_BYPASS_DLPF },
 		{ Register::ACCEL_CONFIG,       ACCEL_CONFIG_BIT::ACCEL_FS_SEL_16G, 0 },
 		{ Register::ACCEL_CONFIG2,      ACCEL_CONFIG2_BIT::ACCEL_FCHOICE_B_BYPASS_DLPF, 0 },
+		{ Register::GYRO_CONFIG,        GYRO_CONFIG_BIT::GYRO_FS_SEL_2000_DPS, GYRO_CONFIG_BIT::FCHOICE_B_8KHZ_BYPASS_DLPF },
+		{ Register::CONFIG,             CONFIG_BIT::FIFO_MODE | CONFIG_BIT::DLPF_CFG_BYPASS_DLPF_8KHZ, 0 },
+		{ Register::USER_CTRL,          USER_CTRL_BIT::FIFO_EN | USER_CTRL_BIT::I2C_MST_EN /*| USER_CTRL_BIT::I2C_IF_DIS*/, 0 },
 		{ Register::FIFO_EN,            FIFO_EN_BIT::GYRO_XOUT | FIFO_EN_BIT::GYRO_YOUT | FIFO_EN_BIT::GYRO_ZOUT | FIFO_EN_BIT::ACCEL, 0 },
 		{ Register::I2C_SLV4_CTRL,      I2C_SLV4_CTRL_BIT::I2C_MST_DLY, 0 },
 		{ Register::I2C_MST_CTRL,       I2C_MST_CTRL_BIT::I2C_MST_P_NSR | I2C_MST_CTRL_BIT::I2C_MST_CLK_400_kHz, 0 },
@@ -187,3 +195,5 @@ private:
 		{ Register::PWR_MGMT_1,         PWR_MGMT_1_BIT::CLKSEL_0, 0 },
 	};
 };
+
+
