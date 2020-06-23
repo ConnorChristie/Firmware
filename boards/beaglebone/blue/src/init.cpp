@@ -72,7 +72,6 @@ int rc_init(void)
 	// rc_pinmux_set_default() includes: rc_pinmux_set(DSM_HEADER_PIN, PINMUX_UART);
 	 */
 
-	/*
 	// Due to device tree issue, rc_pinmux_set_default() currently does not work correctly
 	// with kernel 4.14, use a simplified version for now
 	//
@@ -88,22 +87,26 @@ int rc_init(void)
 		PX4_ERR("rc_init failed to set default pinmux");
 		return -1;
 	}
-	*/
 
 	// no direct equivalent of configure_gpio_pins()
-
-	if (rc_adc_init()) {
-		PX4_ERR("rc_init failed to run rc_adc_init()");
-		return -1;
-	}
 
 	if (rc_servo_init()) {  // Configures the PRU to send servo pulses
 		PX4_ERR("rc_init failed to run rc_servo_init()");
 		return -1;
 	}
 
-	if (rc_servo_power_rail_en(1)) { // Turning On 6V Servo Power Rail
+	if (rc_servo_set_esc_range(1000, 2000)) {
+		PX4_ERR("rc_init failed to run rc_servo_set_esc_range()");
+		return -1;
+	}
+
+	if (rc_servo_power_rail_en(0)) {
 		PX4_ERR("rc_init failed to run rc_servo_power_rail_en(1)");
+		return -1;
+	}
+
+	if (rc_adc_init()) {
+		PX4_ERR("rc_init failed to run rc_adc_init()");
 		return -1;
 	}
 
@@ -126,10 +129,10 @@ void rc_cleaning(void)
 
 	rc_set_state(EXITING);
 
-	rc_adc_cleanup();
-
 	rc_servo_power_rail_en(0);
 	rc_servo_cleanup();
+
+	rc_adc_cleanup();
 
 	rc_remove_pid_file();
 #endif

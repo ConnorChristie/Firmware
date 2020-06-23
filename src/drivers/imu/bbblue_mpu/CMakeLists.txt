@@ -1,6 +1,6 @@
 ############################################################################
 #
-#   Copyright (c) 2018-2019 PX4 Development Team. All rights reserved.
+#   Copyright (c) 2015-2019 PX4 Development Team. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -30,27 +30,15 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #
 ############################################################################
-
-add_compile_options(-Wno-cast-align)
-
-include(ExternalProject)
-ExternalProject_Add(librobotcontrol
-	GIT_REPOSITORY https://github.com/beagleboard/librobotcontrol.git
-	GIT_TAG 964a835 # latest as of 2019-12-29
-	CMAKE_CACHE_ARGS -DCMAKE_TOOLCHAIN_FILE:STRING=${CMAKE_TOOLCHAIN_FILE}
-	INSTALL_COMMAND ""
-	TEST_COMMAND ""
-	LOG_DOWNLOAD ON
-	LOG_CONFIGURE ON
-	LOG_BUILD ON
-)
-
-ExternalProject_Get_Property(librobotcontrol install_dir)
-set(ROBOTCONTROL_LIB_DIR ${install_dir}/src/librobotcontrol-build/library)
-set(ROBOTCONTROL_INC_DIR ${install_dir}/src/librobotcontrol/library/include)
-
-include_directories(SYSTEM ${ROBOTCONTROL_INC_DIR})
-link_directories(${ROBOTCONTROL_LIB_DIR})
-
-# add to prebuild
-add_dependencies(prebuild_targets librobotcontrol)
+px4_add_module(
+	MODULE drivers__imu__bbblue_mpu
+	MAIN bbblue_mpu
+	COMPILE_FLAGS
+	SRCS
+		bbblue_mpu.cpp
+	DEPENDS
+		px4_work_queue
+		drivers_accelerometer
+		drivers_gyroscope
+		drivers_magnetometer
+	)
