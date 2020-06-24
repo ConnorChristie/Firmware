@@ -5,9 +5,9 @@
 BBBlueMPU::BBBlueMPU() :
 	ScheduledWorkItem(MODULE_NAME, px4::device_bus_to_wq(2)),
 	_cycle_perf(perf_alloc(PC_ELAPSED, MODULE_NAME": cycle")),
-	_px4_accel(0x29, ORB_PRIO_HIGH, (enum Rotation)0),
-	_px4_gyro(0x29, ORB_PRIO_HIGH, (enum Rotation)0),
-	_px4_mag(0x29, ORB_PRIO_DEFAULT, (enum Rotation)0)
+	_px4_accel(1, ORB_PRIO_HIGH, (enum Rotation)0),
+	_px4_gyro(1, ORB_PRIO_HIGH, (enum Rotation)0),
+	_px4_mag(1, ORB_PRIO_DEFAULT, (enum Rotation)0)
 {
 }
 
@@ -75,8 +75,6 @@ void BBBlueMPU::Run()
 	_px4_mag.update(timestamp_sample, _data.mag[0], _data.mag[1], _data.mag[2]);
 
 	perf_end(_cycle_perf);
-
-	px4_usleep(1250_us);
 }
 
 void BBBlueMPU::configure_accel(rc_mpu_accel_fsr_t fsr)
@@ -135,6 +133,9 @@ int BBBlueMPU::task_spawn(int argc, char *argv[])
 		return PX4_ERROR;
 	}
 
+	_object.store(instance);
+	_task_id = task_id_is_work_queue;
+
 	instance->ScheduleOnInterval(_current_update_interval);
 
 	return PX4_OK;
@@ -166,7 +167,7 @@ int BBBlueMPU::print_usage(const char *reason)
 		PX4_WARN("%s\n", reason);
 	}
 
-	PRINT_MODULE_USAGE_NAME("bbblue_rc", "driver");
+	PRINT_MODULE_USAGE_NAME("bbblue_bmp", "driver");
 	PRINT_MODULE_USAGE_SUBCATEGORY("imu");
 	PRINT_MODULE_USAGE_COMMAND("start");
 	PRINT_MODULE_USAGE_DEFAULT_COMMANDS();
