@@ -41,8 +41,6 @@ using namespace time_literals;
 static bool bind_spektrum(int arg);
 #endif /* SPEKTRUM_POWER */
 
-constexpr char const *RCInput::RC_SCAN_STRING[];
-
 RCInput::RCInput(const char *device) :
 	ScheduledWorkItem(MODULE_NAME, px4::serial_port_to_wq(device)),
 	_cycle_perf(perf_alloc(PC_ELAPSED, MODULE_NAME": cycle time")),
@@ -83,24 +81,14 @@ RCInput::init()
 	RF_RADIO_POWER_CONTROL(true);
 #endif // RF_RADIO_POWER_CONTROL
 
-
-	// dsm_init sets some file static variables and returns a file descriptor
-	_rcs_fd = dsm_init(_device);
+	// assume SBUS input and immediately switch it to
+	// so that if Single wire mode on TX there will be only
+	// a short contention
+	_rcs_fd = sbus_init(_device, board_rc_singlewire(_device));
 
 	if (_rcs_fd < 0) {
 		return -errno;
 	}
-
-	if (board_rc_swap_rxtx(_device)) {
-#if defined(TIOCSSWAP)
-		ioctl(_rcs_fd, TIOCSSWAP, SER_SWAP_ENABLED);
-#endif // TIOCSSWAP
-	}
-
-	// assume SBUS input and immediately switch it to
-	// so that if Single wire mode on TX there will be only
-	// a short contention
-	sbus_config(_rcs_fd, board_rc_singlewire(_device));
 
 #ifdef GPIO_PPM_IN
 	// disable CPPM input by mapping it away from the timer capture input
@@ -229,13 +217,6 @@ RCInput::fill_rc_in(uint16_t raw_rc_count_local,
 	_rc_in.rc_total_frame_count = 0;
 }
 
-void RCInput::set_rc_scan_state(RC_SCAN newState)
-{
-	PX4_DEBUG("RCscan: %s failed, trying %s", RCInput::RC_SCAN_STRING[_rc_scan_state], RCInput::RC_SCAN_STRING[newState]);
-	_rc_scan_begin = 0;
-	_rc_scan_state = newState;
-}
-
 void RCInput::rc_io_invert(bool invert)
 {
 	// First check if the board provides a board-specific inversion method (e.g. via GPIO),
@@ -264,78 +245,24 @@ void RCInput::Run()
 		}
 
 	} else {
-
 		perf_begin(_cycle_perf);
 
 		const hrt_abstime cycle_timestamp = hrt_absolute_time();
-
-		bool rc_updated = false;
-
-		// This block scans for a supported serial RC input and locks onto the first one found
-		// Scan for 300 msec, then switch protocol
-		constexpr hrt_abstime rc_scan_max = 300_ms;
-
-		bool sbus_failsafe, sbus_frame_drop;
+		bool rc_updated, sbus_failsafe, sbus_frame_drop;
 		unsigned frame_drops = 0;
 
-		if (_report_lock && _rc_scan_locked) {
-			_report_lock = false;
-			//PX4_WARN("RCscan: %s RC input locked", RC_SCAN_STRING[_rc_scan_state]);
-		}
+		int newBytes = ::read(_rcs_fd, &_rcs_buf[0], SBUS_BUFFER_SIZE);
 
-		int newBytes = 0;
+		if (newBytes > 0) {
+			rc_updated = sbus_parse(cycle_timestamp, &_rcs_buf[0], newBytes, &_raw_rc_values[0], &_raw_rc_count, &sbus_failsafe,
+						&sbus_frame_drop, &frame_drops, input_rc_s::RC_INPUT_MAX_CHANNELS);
 
-		// TODO: needs work (poll _rcs_fd)
-		// int ret = poll(fds, sizeof(fds) / sizeof(fds[0]), 100);
-		// then update priority to SCHED_PRIORITY_FAST_DRIVER
-		// read all available data from the serial RC input UART
-
-		// read all available data from the serial RC input UART
-		newBytes = ::read(_rcs_fd, &_rcs_buf[0], SBUS_BUFFER_SIZE);
-
-		switch (_rc_scan_state) {
-		case RC_SCAN_SBUS:
-			if (_rc_scan_begin == 0) {
-				_rc_scan_begin = cycle_timestamp;
-				// Configure serial port for SBUS
-				sbus_config(_rcs_fd, board_rc_singlewire(_device));
-				rc_io_invert(true);
-
-			} else if (_rc_scan_locked
-				   || cycle_timestamp - _rc_scan_begin < rc_scan_max) {
-
-				// parse new data
-				if (newBytes > 0) {
-					rc_updated = sbus_parse(cycle_timestamp, &_rcs_buf[0], newBytes, &_raw_rc_values[0], &_raw_rc_count, &sbus_failsafe,
-								&sbus_frame_drop, &frame_drops, input_rc_s::RC_INPUT_MAX_CHANNELS);
-
-					if (rc_updated) {
-						// we have a new SBUS frame. Publish it.
-						_rc_in.input_source = input_rc_s::RC_INPUT_SOURCE_PX4FMU_SBUS;
-						fill_rc_in(_raw_rc_count, _raw_rc_values, cycle_timestamp,
-							   sbus_frame_drop, sbus_failsafe, frame_drops);
-						_rc_scan_locked = true;
-					}
-				}
-
+			if (rc_updated) {
+				// we have a new SBUS frame. Publish it.
+				_rc_in.input_source = input_rc_s::RC_INPUT_SOURCE_PX4FMU_SBUS;
+				fill_rc_in(_raw_rc_count, _raw_rc_values, cycle_timestamp,
+						sbus_frame_drop, sbus_failsafe, frame_drops);
 			}
-
-			break;
-
-		case RC_SCAN_DSM:
-			break;
-
-		case RC_SCAN_ST24:
-			break;
-
-		case RC_SCAN_SUMD:
-			break;
-
-		case RC_SCAN_PPM:
-			break;
-
-		case RC_SCAN_CRSF:
-			break;
 		}
 
 		perf_end(_cycle_perf);
@@ -344,9 +271,6 @@ void RCInput::Run()
 			perf_count(_publish_interval_perf);
 
 			_to_input_rc.publish(_rc_in);
-
-		} else if (!rc_updated && ((hrt_absolute_time() - _rc_in.timestamp_last_signal) > 1_s)) {
-			_rc_scan_locked = false;
 		}
 	}
 }
@@ -426,7 +350,6 @@ int RCInput::print_status()
 		PX4_INFO("Serial device: %s", _device);
 	}
 
-	PX4_INFO("RC scan state: %s, locked: %s", RC_SCAN_STRING[_rc_scan_state], _rc_scan_locked ? "yes" : "no");
 	PX4_INFO("CRSF Telemetry: %s", _crsf_telemetry ? "yes" : "no");
 	PX4_INFO("SBUS frame drops: %u", sbus_dropped_frames());
 

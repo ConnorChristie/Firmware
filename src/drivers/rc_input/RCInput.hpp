@@ -87,29 +87,7 @@ private:
 
 	void Run() override;
 
-	enum RC_SCAN {
-		RC_SCAN_PPM = 0,
-		RC_SCAN_SBUS,
-		RC_SCAN_DSM,
-		RC_SCAN_SUMD,
-		RC_SCAN_ST24,
-		RC_SCAN_CRSF
-	} _rc_scan_state{RC_SCAN_SBUS};
-
-	static constexpr char const *RC_SCAN_STRING[6] {
-		"PPM",
-		"SBUS",
-		"DSM",
-		"SUMD",
-		"ST24",
-		"CRSF"
-	};
-
-	hrt_abstime _rc_scan_begin{0};
-
 	bool _initialized{false};
-	bool _rc_scan_locked{false};
-	bool _report_lock{true};
 
 	static constexpr unsigned	_current_update_interval{4000}; // 250 Hz
 
@@ -140,8 +118,6 @@ private:
 			uint16_t raw_rc_values_local[input_rc_s::RC_INPUT_MAX_CHANNELS],
 			hrt_abstime now, bool frame_drop, bool failsafe,
 			unsigned frame_drops, int rssi);
-
-	void set_rc_scan_state(RC_SCAN _rc_scan_state);
 
 	void rc_io_invert(bool invert);
 
