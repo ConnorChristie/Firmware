@@ -48,7 +48,7 @@
 #include <uORB/topics/vehicle_control_mode.h>
 #include <drivers/drv_led.h>
 #include <drivers/drv_board_led.h>
-
+#include <robotcontrol.h>
 
 bool is_multirotor(const struct vehicle_status_s *current_status);
 bool is_rotary_wing(const struct vehicle_status_s *current_status);

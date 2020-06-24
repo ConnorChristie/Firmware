@@ -45,7 +45,8 @@
 #define BOARD_BATTERY1_V_DIV   (11.0f)
 
 #define BOARD_MAX_LEDS 4 // Number external of LED's this board has
-
+#define LED_BASE_DEVICE_PATH "/sys/devices/platform/leds/leds/beaglebone:green:usr"
+#define LED0_DEVICE_PATH "/sys/devices/platform/leds/leds/beaglebone:green:usr1"
 
 // I2C
 #define PX4_NUMBER_I2C_BUSES    2

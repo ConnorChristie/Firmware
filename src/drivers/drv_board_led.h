@@ -43,8 +43,13 @@
 #include <stdint.h>
 #include <sys/ioctl.h>
 
+#ifndef LED_BASE_DEVICE_PATH
 #define LED_BASE_DEVICE_PATH		"/dev/led"
+#endif
+
+#ifndef LED0_DEVICE_PATH
 #define LED0_DEVICE_PATH		"/dev/led0"
+#endif
 
 #define _LED_BASE		0x2800
 
