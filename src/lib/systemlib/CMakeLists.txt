@@ -54,4 +54,4 @@ else()
 endif()
 
 px4_add_library(systemlib ${SRCS})
-target_compile_options(systemlib PRIVATE ${MAX_CUSTOM_OPT_LEVEL})
+target_compile_options(systemlib PRIVATE -Wno-unused-result ${MAX_CUSTOM_OPT_LEVEL})

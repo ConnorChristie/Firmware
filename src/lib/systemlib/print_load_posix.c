@@ -50,6 +50,13 @@
 #include <systemlib/printload.h>
 #include <drivers/drv_hrt.h>
 
+#ifdef __PX4_LINUX
+#include <sys/types.h>
+#include <linux/limits.h>
+#include <dirent.h>
+#include <stdlib.h>
+#endif
+
 #ifdef __PX4_DARWIN
 #include <mach/mach.h>
 #endif
@@ -81,6 +88,19 @@ void init_print_load_s(uint64_t t, struct print_load_s *s)
 	s->interval_time_ms_inv = 0.f;
 }
 
+#if defined(__PX4_LINUX)
+
+typedef long long int num;
+
+FILE *input;
+
+void readone(num *x) { fscanf(input, "%lld ", x); }
+void readunsigned(unsigned long long *x) { fscanf(input, "%llu ", x); }
+void readstr(char *x) {  fscanf(input, "%s ", x);}
+void readchar(char *x) {  fscanf(input, "%c ", x);}
+
+#endif
+
 void print_load(uint64_t t, int fd, struct print_load_s *print_state)
 {
 	char *clear_line = "";
@@ -91,8 +111,70 @@ void print_load(uint64_t t, int fd, struct print_load_s *print_state)
 		clear_line = CL;
 	}
 
-#if defined(__PX4_LINUX) || defined(__PX4_CYGWIN) || defined(__PX4_QURT)
+#if defined(__PX4_CYGWIN) || defined(__PX4_QURT)
 	dprintf(fd, "%sTOP NOT IMPLEMENTED ON LINUX, QURT, WINDOWS (ONLY ON NUTTX, APPLE)\n", clear_line);
+
+#elif defined(__PX4_LINUX)
+
+	FILE *data_file;
+	int sec, ssec;
+	long tickspersec;
+
+	tickspersec = sysconf(_SC_CLK_TCK);
+	data_file = fopen("/proc/uptime", "r");
+	fscanf(data_file, "%d.%ds", &sec, &ssec);
+	fclose(data_file);
+
+	char filename[100];
+	num total_time, utime, stime, num_threads;
+	unsigned long long start_time;
+	double seconds, cpu_usage;
+
+	DIR *dir;
+	struct dirent *ent;
+
+	snprintf(filename, sizeof(filename), "/proc/%d/task/", getpid());
+
+	if ((dir = opendir(filename)) != NULL) {
+		while ((ent = readdir(dir)) != NULL) {
+			if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0) {
+				continue;
+			}
+
+			snprintf(filename, sizeof(filename), "/proc/%d/task/%s/stat", getpid(), ent->d_name);
+			input = fopen(filename, "r");
+
+			fscanf(input, "%*d %*s %*c %*d %*d %*d %*d %*d %*d %*d %*d %*d %*d %lld %lld %*d %*d %*d %*d %lld %*d %llu",
+			       &utime, &stime, &num_threads, &start_time);
+
+			fclose(input);
+
+			total_time = utime + stime;
+			seconds = sec - (start_time / tickspersec);
+			cpu_usage = 100.0 * ((total_time / tickspersec) / seconds);
+
+			dprintf(fd, "thread %s\t %.2f\n", ent->d_name, cpu_usage);
+		}
+		closedir(dir);
+	}
+
+	snprintf(filename, sizeof(filename), "/proc/%d/stat", getpid());
+	input = fopen(filename, "r");
+
+	fscanf(input, "%*d %*s %*c %*d %*d %*d %*d %*d %*d %*d %*d %*d %*d %lld %lld %*d %*d %*d %*d %lld %*d %llu",
+	       &utime, &stime, &num_threads, &start_time);
+
+	fclose(input);
+
+	total_time = utime + stime;
+	seconds = sec - (start_time / tickspersec);
+	cpu_usage = 100.0 * ((total_time / tickspersec) / seconds);
+
+	dprintf(fd, "total\t\t %.2f\n", cpu_usage);
+
+	dprintf(fd, "%sThreads: %lld total\n",
+		clear_line,
+		num_threads);
 
 #elif defined(__PX4_DARWIN)
 	pid_t pid = getpid();   //-- this is the process id you need info for
