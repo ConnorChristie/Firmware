@@ -133,7 +133,7 @@ int BBBlueMPU::task_spawn(int argc, char *argv[])
 		return PX4_ERROR;
 	}
 
-	_object = instance;
+	_object.store(instance);
 	_task_id = task_id_is_work_queue;
 
 	instance->ScheduleOnInterval(_current_update_interval);

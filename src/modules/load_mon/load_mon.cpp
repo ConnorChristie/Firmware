@@ -149,7 +149,7 @@ int LoadMon::task_spawn(int argc, char *argv[])
 		return -1;
 	}
 
-	_object = obj;
+	_object.store(obj);
 	_task_id = task_id_is_work_queue;
 
 	/* Schedule a cycle to start things. */
