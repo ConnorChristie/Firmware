@@ -41,6 +41,8 @@
 
 #include <robotcontrol.h>
 
+#define BBBLUE_BMP_DEVID 0x4C7611
+
 static constexpr int TASK_STACK_SIZE = 1800;
 
 using namespace time_literals;
@@ -75,7 +77,7 @@ private:
 
 	PX4Barometer _px4_baro;
 
-	static constexpr unsigned _current_update_interval{1250}; // 800 Hz
+	static constexpr unsigned _current_update_interval{2000}; // 800 Hz
 
 	bool _initialized{false};
 

@@ -43,6 +43,8 @@
 
 #include <robotcontrol.h>
 
+#define BBBLUE_MPU_DEVID 0x4C6811
+
 static constexpr int TASK_STACK_SIZE = 1800;
 
 using namespace time_literals;

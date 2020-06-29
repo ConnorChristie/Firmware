@@ -44,14 +44,7 @@
 #include <sys/types.h>
 #include <stdint.h>
 #include <stdbool.h>
-
-//#include <arch/arch.h>
-
-//#include <debug.h>
-
 #include <sys/time.h>
-
-
 #include <drivers/drv_hrt.h>
 
 #include "cpuload.h"
@@ -178,6 +171,12 @@ void sched_note_resume(FAR struct tcb_s *tcb)
 	}
 
 }
+
+
+#elif defined(__PX4_LINUX)
+
+__EXPORT struct system_load_s system_load;
+
 
 #else
 __EXPORT struct system_load_s system_load;

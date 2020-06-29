@@ -3,11 +3,11 @@
 #include "bbblue_mpu.h"
 
 BBBlueMPU::BBBlueMPU() :
-	ScheduledWorkItem(MODULE_NAME, px4::device_bus_to_wq(2)),
+	ScheduledWorkItem(MODULE_NAME, px4::device_bus_to_wq(BBBLUE_MPU_DEVID)),
 	_cycle_perf(perf_alloc(PC_ELAPSED, MODULE_NAME": cycle")),
-	_px4_accel(1, ORB_PRIO_HIGH, (enum Rotation)0),
-	_px4_gyro(1, ORB_PRIO_HIGH, (enum Rotation)0),
-	_px4_mag(1, ORB_PRIO_DEFAULT, (enum Rotation)0)
+	_px4_accel(BBBLUE_MPU_DEVID, ORB_PRIO_HIGH, (enum Rotation)0),
+	_px4_gyro(BBBLUE_MPU_DEVID, ORB_PRIO_HIGH, (enum Rotation)0),
+	_px4_mag(BBBLUE_MPU_DEVID, ORB_PRIO_DEFAULT, (enum Rotation)0)
 {
 }
 
@@ -133,7 +133,7 @@ int BBBlueMPU::task_spawn(int argc, char *argv[])
 		return PX4_ERROR;
 	}
 
-	_object.store(instance);
+	_object = instance;
 	_task_id = task_id_is_work_queue;
 
 	instance->ScheduleOnInterval(_current_update_interval);
@@ -157,6 +157,7 @@ int BBBlueMPU::print_status()
 	PX4_INFO("Running");
 
 	perf_print_counter(_cycle_perf);
+	print_run_status();
 
 	return 0;
 }

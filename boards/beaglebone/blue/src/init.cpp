@@ -38,10 +38,26 @@
  */
 #include <stddef.h>
 #include <px4_platform_common/log.h>
+#include <px4_platform_common/shutdown.h>
 
 #include <robotcontrol.h>
 
 #include "board_config.h"
+
+bool rc_cleanup_hook()
+{
+	PX4_INFO("Cleaning up librobotcontrol ...");
+
+	rc_set_state(EXITING);
+
+	rc_servo_cleanup();
+	rc_adc_cleanup();
+	rc_led_cleanup();
+
+	rc_remove_pid_file();
+
+	return true;
+}
 
 // initialize roboticscape library similar to the deprecated rc_initialize()
 int rc_init(void)
@@ -54,23 +70,12 @@ int rc_init(void)
 
 	PX4_INFO("Initializing librobotcontrol ...");
 
-	// make sure another instance isn't running
-	rc_kill_existing_process(2.0f);
-
-	// make PID file to indicate your project is running
-	rc_make_pid_file();
-
-	// start state as Uninitialized
-	rc_set_state(UNINITIALIZED);
-
-	// initialize pinmux
-	/*
-	if (rc_pinmux_set_default()) {
-		PX4_ERR("rc_init failed to run rc_pinmux_set_default()");
+	if (rc_kill_existing_process(2.0f) < -2) {
+		PX4_ERR("rc_init failed to kill existing processes");
 		return -1;
 	}
-	// rc_pinmux_set_default() includes: rc_pinmux_set(DSM_HEADER_PIN, PINMUX_UART);
-	 */
+
+	rc_make_pid_file();
 
 	// Due to device tree issue, rc_pinmux_set_default() currently does not work correctly
 	// with kernel 4.14, use a simplified version for now
@@ -88,9 +93,7 @@ int rc_init(void)
 		return -1;
 	}
 
-	// no direct equivalent of configure_gpio_pins()
-
-	if (rc_servo_init()) {  // Configures the PRU to send servo pulses
+	if (rc_servo_init()) {
 		PX4_ERR("rc_init failed to run rc_servo_init()");
 		return -1;
 	}
@@ -110,30 +113,17 @@ int rc_init(void)
 		return -1;
 	}
 
-	//i2c, barometer and mpu will be initialized later
+	// i2c, barometer and mpu will be initialized later
 
 	rc_set_state(RUNNING);
+
+	px4_register_shutdown_hook(&rc_cleanup_hook);
 
 	return 0;
 #endif
 }
 
-
 void rc_cleaning(void)
 {
-#ifdef __RC_V0_3
-	rc_cleanup();  return ;
-#else
-
-	if (rc_get_state() == EXITING) { return; }
-
-	rc_set_state(EXITING);
-
-	rc_servo_power_rail_en(0);
-	rc_servo_cleanup();
-
-	rc_adc_cleanup();
-
-	rc_remove_pid_file();
-#endif
+	rc_cleanup_hook();
 }

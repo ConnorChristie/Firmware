@@ -51,6 +51,10 @@
 #include <uORB/topics/cpuload.h>
 #include <uORB/topics/task_stack_info.h>
 
+#ifdef __PX4_LINUX
+#include <malloc.h>
+#endif
+
 #if defined(__PX4_NUTTX) && !defined(CONFIG_SCHED_INSTRUMENTATION)
 #  error load_mon support requires CONFIG_SCHED_INSTRUMENTATION
 #endif
@@ -83,6 +87,11 @@ public:
 	/** @see ModuleBase */
 	static int print_usage(const char *reason = nullptr);
 
+	/**
+	 * Diagnostics - print some basic information about the driver.
+	 */
+	int print_status() override;
+
 	void start();
 
 private:
@@ -94,6 +103,8 @@ private:
 
 	/** Calculate the memory usage */
 	float _ram_used();
+
+	cpuload_s cpuload{};
 
 #ifdef __PX4_NUTTX
 	/* Calculate stack usage */
@@ -138,7 +149,7 @@ int LoadMon::task_spawn(int argc, char *argv[])
 		return -1;
 	}
 
-	_object.store(obj);
+	_object = obj;
 	_task_id = task_id_is_work_queue;
 
 	/* Schedule a cycle to start things. */
@@ -173,6 +184,36 @@ void LoadMon::Run()
 
 void LoadMon::_cpuload()
 {
+#if defined(__PX4_LINUX)
+	// FILE *uptime_file = fopen("/proc/loadavg", "r");
+	// fscanf(uptime_file, "%f", &cpuload.load);
+	// fclose(uptime_file);
+
+	static unsigned int lastTotalUser, lastTotalUserLow, lastTotalSys, lastTotalIdle;
+	unsigned long long totalUser, totalUserLow, totalSys, totalIdle, total;
+
+	float percent;
+
+	FILE* file;
+	file = fopen("/proc/stat", "r");
+	fscanf(file, "cpu %llu %llu %llu %llu", &totalUser, &totalUserLow, &totalSys, &totalIdle);
+	fclose(file);
+
+	total = (totalUser - lastTotalUser) + (totalUserLow - lastTotalUserLow) + (totalSys - lastTotalSys);
+	percent = total;
+	total += (totalIdle - lastTotalIdle);
+	percent /= total;
+
+	lastTotalUser = totalUser;
+	lastTotalUserLow = totalUserLow;
+	lastTotalSys = totalSys;
+	lastTotalIdle = totalIdle;
+
+	cpuload.load = percent;
+	cpuload.ram_usage = _ram_used();
+	cpuload.timestamp = hrt_absolute_time();
+
+#elif defined(__PX4_NUTTX)
 	if (_last_idle_time == 0) {
 		/* Just get the time in the first iteration */
 		_last_idle_time = system_load.tasks[0].total_runtime;
@@ -192,19 +233,21 @@ void LoadMon::_cpuload()
 	cpuload.ram_usage = _ram_used();
 	cpuload.timestamp = hrt_absolute_time();
 
+#endif
+
 	_cpuload_pub.publish(cpuload);
 }
 
 float LoadMon::_ram_used()
 {
-#ifdef __PX4_NUTTX
+#if defined(__PX4_NUTTX) || defined(__PX4_LINUX)
 	struct mallinfo mem;
 
-#ifdef CONFIG_CAN_PASS_STRUCTS
+#if defined(CONFIG_CAN_PASS_STRUCTS) || defined(__PX4_LINUX)
 	mem = mallinfo();
 #else
 	(void)mallinfo(&mem);
-#endif /* CONFIG_CAN_PASS_STRUCTS */
+#endif
 
 	// mem.arena: total ram (bytes)
 	// mem.uordblks: used (bytes)
@@ -302,6 +345,16 @@ void LoadMon::_stack_usage()
 	_stack_task_index = task_index + 1;
 }
 #endif
+
+int LoadMon::print_status()
+{
+	PX4_INFO("Running");
+
+	PX4_INFO("CPU load: %.2f", (double)cpuload.load);
+	PX4_INFO("RAM usage: %.2f", (double)cpuload.ram_usage);
+
+	return 0;
+}
 
 int LoadMon::print_usage(const char *reason)
 {

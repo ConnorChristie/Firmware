@@ -1,4 +1,5 @@
 #include <px4_platform_common/module.h>
+#include <lib/drivers/device/Device.hpp>
 
 #include "bbblue_bmp.h"
 
@@ -17,10 +18,10 @@
 #define	DT		1.0f/BMP_CHECK_HZ
 
 BBBlueBMP::BBBlueBMP() :
-	ScheduledWorkItem(MODULE_NAME, px4::device_bus_to_wq(2)),
+	ScheduledWorkItem(MODULE_NAME, px4::device_bus_to_wq(BBBLUE_BMP_DEVID)),
 	_cycle_perf(perf_alloc(PC_ELAPSED, MODULE_NAME": cycle")),
 	_comms_errors(perf_alloc(PC_COUNT, MODULE_NAME": comms errors")),
-	_px4_baro(1)
+	_px4_baro(BBBLUE_BMP_DEVID)
 {
 }
 
@@ -71,7 +72,7 @@ int BBBlueBMP::task_spawn(int argc, char *argv[])
 		return PX4_ERROR;
 	}
 
-	_object.store(instance);
+	_object = instance;
 	_task_id = task_id_is_work_queue;
 
 	instance->ScheduleOnInterval(1000000 / BMP_CHECK_HZ);

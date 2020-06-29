@@ -34,6 +34,7 @@ px4_add_module(
 	MODULE modules__load_mon
 	MAIN load_mon
 	COMPILE_FLAGS
+		-Wno-unused-result
 	SRCS
 		load_mon.cpp
 	DEPENDS

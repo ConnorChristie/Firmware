@@ -49,6 +49,8 @@ if(${PX4_PLATFORM} STREQUAL "nuttx")
 	)
 else()
 	list(APPEND SRCS
+		cpuload.c
+		cpuload.h
 		print_load_posix.c
 	)
 endif()
